@@ -1,11 +1,18 @@
 import express from 'express';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {EventStore, StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createServer } from './server.js';
 import config from './config.js';
 import { log } from './utils/logger.js';
 import fs from 'fs/promises';
-import path from 'path';
+import { getParamValue } from "@wizdy/typescript-sdk/utils/index.js";
+import { RestServerTransport } from '@wizdy/typescript-sdk/server/rest.js';
+
+const mode = getParamValue("MODE") || "stdio";
+const port = getParamValue("PORT") || 9595;
+const endpoint = getParamValue("ENDPOINT") || "/rest";
+const apiKey = process.env.API_KEY || "";
 
 /**
  * Main entry point for the MCP server
@@ -16,7 +23,7 @@ async function main() {
     const server = createServer();
     
     // Determine the transport type from command line arguments
-    const transportType = process.argv[2] || 'stdio';
+    const transportType = process.argv[2] || 'rest';
     
     // Ensure the storage directory exists
     await fs.mkdir(config.STORAGE_DIR, { recursive: true });
@@ -29,6 +36,23 @@ async function main() {
       await server.connect(transport);
       
       log.info('Server started with stdio transport');
+    } else if (transportType === 'rest') {
+      console.log(
+        "使用 REST 传输，API key:",
+        apiKey ? "已设置" : "未设置（认证已禁用）",
+        "PORT:",
+        port,
+        "ENDPOINT:",
+        endpoint
+      );
+      const transport = new RestServerTransport({
+        port,
+        endpoint,
+        //supportTenantId: true, // 启用多租户支持
+        ...(apiKey ? { bearerToken: apiKey } : {}), // 仅在apiKey有值时启用认证
+      });
+      await server.connect(transport);
+      await transport.startServer();
     } else if (transportType === 'sse') {
       // Use SSE transport
       log.info(`Starting server with SSE transport on port ${config.PORT}`);
