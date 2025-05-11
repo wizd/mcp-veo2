@@ -3,6 +3,7 @@ import { ProviderImageOutput, MediaGenerationProvider } from "./types.js";
 import { log } from "../utils/logger.js";
 
 const GETIMG_API_URL = "https://api.getimg.ai/v1/flux-schnell/text-to-image";
+const DEFAULT_TIMEOUT_MS = 300000; // 5 minutes
 
 class GetimgProvider implements MediaGenerationProvider {
   async generateImage(args: {
@@ -14,7 +15,13 @@ class GetimgProvider implements MediaGenerationProvider {
     seed?: number;
     outputFormat?: "jpeg" | "png";
   }): Promise<ProviderImageOutput[]> {
-    log.info("GetimgProvider: Generating image", { ...args });
+    log.info(
+      `GetimgProvider: Generating image. Prompt: "${args.prompt}", Width: ${
+        args.width
+      }, Height: ${args.height}, Steps: ${args.steps}, Seed: ${
+        args.seed
+      }, Format: ${args.outputFormat || "jpeg"}`
+    );
 
     if (!appConfig.GETIMG_API_KEY) {
       throw new Error("GetimgProvider: GETIMG_API_KEY is not configured.");
@@ -38,6 +45,16 @@ class GetimgProvider implements MediaGenerationProvider {
       );
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      log.warn(
+        `GetimgProvider: Request for prompt "${
+          args.prompt
+        }" is timing out after ${DEFAULT_TIMEOUT_MS / 1000}s.`
+      );
+      controller.abort();
+    }, DEFAULT_TIMEOUT_MS);
+
     try {
       const response = await fetch(GETIMG_API_URL, {
         method: "POST",
@@ -47,7 +64,10 @@ class GetimgProvider implements MediaGenerationProvider {
           Accept: "application/json", // Important for some APIs to ensure JSON response
         },
         body: JSON.stringify(requestBody),
+        signal: controller.signal, // Added abort signal
       });
+
+      clearTimeout(timeoutId); // Clear timeout if fetch completes or errors before timeout
 
       if (!response.ok) {
         const errorBody = await response.text();
@@ -97,8 +117,22 @@ class GetimgProvider implements MediaGenerationProvider {
           // id: responseData.id // if the API returns an ID
         },
       ];
-    } catch (error) {
-      log.error("GetimgProvider: Error generating image", error);
+    } catch (error: any) {
+      clearTimeout(timeoutId); // Ensure timeout is cleared on any error
+      if (error.name === "AbortError") {
+        log.error(
+          `GetimgProvider: Image generation request timed out for prompt: "${args.prompt}"`
+        );
+        throw new Error(
+          `GetimgProvider: Request timed out after ${
+            DEFAULT_TIMEOUT_MS / 1000
+          } seconds.`
+        );
+      }
+      log.error("GetimgProvider: Error generating image", {
+        prompt: args.prompt,
+        error: error.message,
+      });
       throw error instanceof Error ? error : new Error(String(error));
     }
   }

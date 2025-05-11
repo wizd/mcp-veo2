@@ -115,10 +115,13 @@ export async function generateVideoFromText(args: {
 }): Promise<CallToolResult> {
   try {
     const currentProviderName = args.provider || defaultVideoProviderName;
-    log.info("Generating video from text prompt", {
-      provider: currentProviderName,
-      ...args,
-    });
+    log.info(
+      `Generating video from text prompt. Provider: ${currentProviderName}. Args: ${JSON.stringify(
+        args,
+        null,
+        2
+      )}`
+    );
 
     const enhancePromptBool =
       typeof args.enhancePrompt === "string"
