@@ -117,6 +117,7 @@ class Logger {
    * @param data Optional data to include
    */
   private logWithLevel(level: string, message: string, data?: any): void {
+    console.log(`${level} ${message} ${data}`);
     // Check if this log level should be displayed
     if (!this.shouldLog(level)) {
       return;
