@@ -310,8 +310,16 @@ export async function generateVideoFromImage(args: {
   } catch (error) {
     log.error("Error generating video from image:", error);
     return {
-      /* ... error response ... */
-    }; // Standard error response
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: `Error generating video from image: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        },
+      ],
+    };
   }
 }
 
@@ -391,8 +399,16 @@ export async function generateImage(args: {
   } catch (error) {
     log.error("Error generating image:", error);
     return {
-      /* ... error response ... */
-    }; // Standard error response
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: `Error generating image: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        },
+      ],
+    };
   }
 }
 
@@ -533,7 +549,15 @@ export async function generateVideoFromGeneratedImage(args: {
   } catch (error) {
     log.error("Error generating video from generated image:", error);
     return {
-      /* ... error response ... */
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: `Error generating video from generated image: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        },
+      ],
     };
   }
 }
@@ -546,7 +570,7 @@ export async function generateVideoFromGeneratedImage(args: {
 async function getImageMetadata(id: string): Promise<any> {
   try {
     const metadataPath = path.resolve(IMAGE_STORAGE_DIR, `${id}.json`);
-    const metadataJson = await fs.readFile(metadataPath, 'utf-8');
+    const metadataJson = await fs.readFile(metadataPath, "utf-8");
     return JSON.parse(metadataJson);
   } catch (error) {
     log.error(`Error getting metadata for image ${id}:`, error);
@@ -604,7 +628,15 @@ export async function getImage(args: {
   } catch (error) {
     log.error(`Error getting image:`, error);
     return {
-      /* ... error response ... */
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: `Error getting image: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        },
+      ],
     };
   }
 }
@@ -657,7 +689,15 @@ export async function listGeneratedImages(): Promise<CallToolResult> {
   } catch (error) {
     log.error("Error listing images:", error);
     return {
-      /* ... error response ... */
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: `Error listing images: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        },
+      ],
     };
   }
 }
@@ -669,57 +709,11 @@ export async function listGeneratedImages(): Promise<CallToolResult> {
 // Keeping original Veo-centric logic for now.
 export async function listGeneratedVideos(): Promise<CallToolResult> {
   try {
-    // Attempt to use Veo provider for listing, as it was the original source of this function
-    // This makes an assumption that video listing is a Veo-specific feature for now.
-    if (veoProvider && typeof (veoProvider as any).listVideos === 'function') {
-        const videos = await (veoProvider as any).listVideos(); // Assuming veoProvider could expose this
-         return {
-           content: [
-             {
-               type: "text",
-               text: JSON.stringify(
-                 {
-                   success: true,
-                   count: videos.length,
-                   videos: videos.map((video: any) => ({
-                     id: video.id,
-                     createdAt: video.createdAt,
-                     prompt: video.prompt,
-                     resourceUri: `videos://${video.id}`,
-                     filepath: video.filepath,
-                     videoUrl: video.videoUrl,
-                   })),
-                 },
-                 null,
-                 2
-               ),
-             },
-           ],
-         };
-    } else {
-      // Fallback or if Veo is not the one providing listVideos
-      // Check if the original veoClient is still somehow accessible or if this should be an error.
-      // For now, let's try to call the old veoClient path if it were still imported.
-      // Since it's removed, this part needs a decision: either remove listGeneratedVideos
-      // or make it dependent on a specific provider that supports listing.
-      log.warn(
-        "listGeneratedVideos: veoClient is no longer directly available. Trying to list videos via VeoProvider if it supports it, or this will fail."
-      );
-      // If VeoProvider doesn't expose listVideos, we can try to get it from the imported veoClient directly.
-      // But veoClient is removed from imports. This function as-is is now problematic.
-      // For the purpose of this refactor, let's assume VeoProvider will need a listVideos method.
-      // If not, this function becomes non-operational for Fal as default.
-      // Quick Fix: Assume veoClient.listVideos() should be called IF the user specifically wants VEO videos.
-      // This function is now less generic.
-      log.info("Listing videos (Note: currently relies on Veo capabilities)");
-      const videos = await appConfig.veoClient?.listVideos(); // This is a hack, appConfig.veoClient does not exist.
-      // This shows the function is broken with current refactor path
-      // unless veoProvider gets a listVideos method.
-      if (!videos)
-        throw new Error(
-          "Video listing is currently only supported via a Veo-like provider with listVideos method."
-        );
+    const provider = getVideoProvider(); // Gets default or could be made to accept arg
+    log.info("Attempting to list videos using provider.");
 
+    if (provider.listVideos && typeof provider.listVideos === "function") {
+      const videos = await provider.listVideos();
       return {
         content: [
           {
@@ -728,14 +722,37 @@ export async function listGeneratedVideos(): Promise<CallToolResult> {
               {
                 success: true,
                 count: videos.length,
-                videos: videos.map((video: any) => ({
+                videos: videos.map((video) => ({
                   id: video.id,
-                  createdAt: video.createdAt,
+                  createdAt: (video as any).createdAt, // createdAt is not in ProviderVideoOutput, cast or add to type
                   prompt: video.prompt,
                   resourceUri: `videos://${video.id}`,
                   filepath: video.filepath,
                   videoUrl: video.videoUrl,
                 })),
+                provider: provider.constructor.name, // e.g. 'VeoProvider'
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } else {
+      log.warn(
+        `Video listing is not supported by the current default video provider: ${provider.constructor.name}`
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                success: true,
+                count: 0,
+                videos: [],
+                message: `Video listing is not supported by the current default video provider: ${provider.constructor.name}. Only providers with a listVideos method (e.g., VeoProvider) support this. FalProvider (default) does not.`,
+                provider: provider.constructor.name,
               },
               null,
               2
@@ -746,8 +763,6 @@ export async function listGeneratedVideos(): Promise<CallToolResult> {
     }
   } catch (error) {
     log.error("Error listing videos:", error);
-    // If veoClient is gone, this will error out.
-    // A better approach would be for providers to optionally implement list methods.
     return {
       isError: true,
       content: [
@@ -755,7 +770,9 @@ export async function listGeneratedVideos(): Promise<CallToolResult> {
           type: "text",
           text: `Error listing videos: ${
             error instanceof Error ? error.message : String(error)
-          }. This may be due to provider changes.`,
+          }. This may be due to provider capabilities. Provider: ${
+            getVideoProvider().constructor.name
+          }`,
         },
       ],
     };

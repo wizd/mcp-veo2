@@ -116,6 +116,24 @@ class VeoProvider implements MediaGenerationProvider {
       "VeoProvider: generateImage is not implemented. Use GoogleProvider for Imagen."
     );
   }
+
+  async listVideos(): Promise<ProviderVideoOutput[]> {
+    log.info("VeoProvider: Listing videos");
+    try {
+      const results = await veoClient.listVideos(); // Assumes veoClient.listVideos() exists and returns array of videos
+      return results.map((video: any) => ({
+        id: video.id,
+        filepath: video.filepath,
+        videoUrl: video.videoUrl,
+        mimeType: video.mimeType || "video/mp4", // Assuming a default or that veoClient provides it
+        prompt: video.prompt,
+        // Potentially map other fields like createdAt if available and needed
+      }));
+    } catch (error) {
+      log.error("VeoProvider: Error listing videos", error);
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  }
 }
 
 export const veoProvider = new VeoProvider();

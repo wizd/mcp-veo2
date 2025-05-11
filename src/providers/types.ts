@@ -42,4 +42,6 @@ export interface MediaGenerationProvider {
     enhancePrompt?: boolean;
     negativePrompt?: string;
   }): Promise<ProviderVideoOutput[]>;
+
+  listVideos?(): Promise<ProviderVideoOutput[]>;
 }
