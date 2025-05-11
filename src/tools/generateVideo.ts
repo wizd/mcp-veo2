@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { falProvider } from "../providers/falProvider.js";
 import { googleProvider } from "../providers/googleProvider.js";
 import { veoProvider } from "../providers/veoProvider.js";
+import { getimgProvider } from "../providers/getimgProvider.js";
 import {
   MediaGenerationProvider,
   ProviderImageOutput,
@@ -73,7 +74,7 @@ const PersonGenerationSchema = z.enum(['dont_allow', 'allow_adult']);
 
 // Provider selection (can be made more dynamic, e.g., via config or args)
 const defaultVideoProviderName = 'fal'; // Fal is the new default for video
-const defaultImageProviderName = 'google'; // Google (Imagen) for images
+const defaultImageProviderName = 'getimg'; // getimg is the new default for images
 
 function getVideoProvider(providerName?: string): MediaGenerationProvider {
   const name = providerName || defaultVideoProviderName;
@@ -89,8 +90,12 @@ function getVideoProvider(providerName?: string): MediaGenerationProvider {
 function getImageProvider(providerName?: string): MediaGenerationProvider {
   const name = providerName || defaultImageProviderName;
   if (name === 'google') return googleProvider;
+  if (name === "getimg") return getimgProvider;
   // Potentially add other image providers here
-  log.warn(`Unknown or unsupported image provider specified: ${name}. Falling back to default: ${defaultImageProviderName}`);
+  log.warn(
+    `Unknown or unsupported image provider specified: ${name}. Falling back to default: ${defaultImageProviderName}`
+  );
+  if (defaultImageProviderName === "getimg") return getimgProvider;
   if (defaultImageProviderName === 'google') return googleProvider;
   throw new Error(`Default image provider ${defaultImageProviderName} not configured correctly.`);
 }

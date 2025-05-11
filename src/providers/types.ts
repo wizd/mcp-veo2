@@ -3,6 +3,7 @@ export interface ProviderImageOutput {
   imageData: string; // base64 encoded
   mimeType: string;
   prompt?: string;
+  seed?: number; // Added seed based on getimg.ai response
   // Other metadata relevant to the image
 }
 
@@ -20,6 +21,11 @@ export interface MediaGenerationProvider {
   generateImage?(args: {
     prompt: string;
     numberOfImages?: number;
+    width?: number;
+    height?: number;
+    steps?: number;
+    seed?: number;
+    outputFormat?: "jpeg" | "png"; // Specify output format
   }): Promise<ProviderImageOutput[]>;
 
   generateVideoFromText?(args: {

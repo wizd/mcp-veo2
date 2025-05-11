@@ -12,15 +12,20 @@ export type LogLevel = 'verbose' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 const ConfigSchema = z.object({
   // Google API Key for Gemini/Veo2
   GOOGLE_API_KEY: z.string().min(1),
-  
+
   // Server configuration (optional with default)
-  PORT: z.string().transform(Number).default('3000'),
-  
+  PORT: z.string().transform(Number).default("3000"),
+
   // Storage directory for generated videos (optional with default)
-  STORAGE_DIR: z.string().default('./generated-videos'),
-  
+  STORAGE_DIR: z.string().default("./generated-videos"),
+
   // Logging level (optional with default to 'fatal')
-  LOG_LEVEL: z.enum(['verbose', 'debug', 'info', 'warn', 'error', 'fatal', 'none']).default('fatal'),
+  LOG_LEVEL: z
+    .enum(["verbose", "debug", "info", "warn", "error", "fatal", "none"])
+    .default("fatal"),
+
+  // Added GETIMG_API_KEY
+  GETIMG_API_KEY: z.string().min(1),
 });
 
 // Parse and validate environment variables
