@@ -189,17 +189,189 @@ class FalProvider implements MediaGenerationProvider {
   }
 
   async generateVideoFromImage(args: {
-    imageData: string;
+    imageData: string; // base64 encoded image
     imageMimeType: string;
     prompt?: string;
     aspectRatio?: "16:9" | "9:16";
-    numberOfVideos?: number;
+    numberOfVideos?: number; // fal-ai/framepack generates one video per request
     durationSeconds?: number;
+    enhancePrompt?: boolean; // Not directly used by framepack, can be ignored or used in prompt engineering if desired
+    negativePrompt?: string;
   }): Promise<ProviderVideoOutput[]> {
-    log.warn("FalProvider: generateVideoFromImage is not implemented.");
-    // Most Fal image-to-video models would take an image_url, not base64 directly.
-    // If needed, this would involve uploading the imageData to a temporary URL first.
-    throw new Error("FalProvider: generateVideoFromImage is not implemented.");
+    log.info(
+      `FalProvider: Generating video from image using framepack (queue). Prompt: "${args.prompt}", AspectRatio: ${args.aspectRatio}, Duration: ${args.durationSeconds}s`
+    );
+    try {
+      // 1. Upload image data to get a URL
+      // Convert base64 string to a Buffer, then to a File-like object for fal.storage.upload
+      // fal.storage.upload expects a File object or a similar structure.
+      // Let's construct a "Blob-like" object, as 'File' is a browser concept.
+      // The fal client might handle raw Buffers or require specific structuring for Node.js.
+      // The docs show: const file = new File(["Hello, World!"], "hello.txt", { type: "text/plain" });
+      // In Node.js, we can use Buffer directly or a stream. Let's try with Buffer and see if client handles it.
+      // If not, we may need to use a library or a more specific approach for Node.js File representation for fal.
+
+      let imageUrl = "";
+      try {
+        const imageBuffer = Buffer.from(args.imageData, "base64");
+        const fileName = `input-${uuidv4()}.${
+          args.imageMimeType.split("/")[1] || "png"
+        }`;
+
+        // Construct a File-like object for fal.storage.upload
+        // as `upload(file: FalFile)` expects properties like name and type to be part of the file object.
+        const fileObjectForUpload = {
+          data: imageBuffer, // The actual binary data
+          name: fileName, // The desired file name
+          type: args.imageMimeType, // The mime type
+          // fal-ai client might expect an arrayBuffer method or property for processing
+          arrayBuffer: async () => imageBuffer,
+          size: imageBuffer.length,
+        };
+
+        log.info("FalProvider: Uploading image to Fal storage...");
+        // Pass the constructed object that adheres to what fal.storage.upload might expect for a File/Data type
+        imageUrl = await fal.storage.upload(fileObjectForUpload as any); // Cast to any to bypass strict FalFile type if our object isn't a perfect match
+        log.info(`FalProvider: Image uploaded successfully. URL: ${imageUrl}`);
+      } catch (uploadError) {
+        log.error(
+          "FalProvider: Error uploading image to Fal storage",
+          uploadError
+        );
+        throw new Error(
+          `FalProvider: Failed to upload image for video generation. ${
+            uploadError instanceof Error
+              ? uploadError.message
+              : String(uploadError)
+          }`
+        );
+      }
+
+      const input: any = {
+        prompt: args.prompt || "A beautiful video generated from an image.", // Default prompt if none provided
+        image_url: imageUrl,
+      };
+
+      if (args.aspectRatio) {
+        input.aspect_ratio = args.aspectRatio; // "16:9" or "9:16"
+      }
+      if (args.durationSeconds) {
+        // framepack default num_frames is 180. Assuming 30 FPS for conversion.
+        input.num_frames = args.durationSeconds * 30;
+      }
+      if (args.negativePrompt) {
+        input.negative_prompt = args.negativePrompt;
+      }
+      // Other framepack specific params like 'resolution', 'cfg_scale', 'guidance_scale', 'seed' can be added if needed
+      // Using defaults for now: resolution: "480p", cfg_scale: 1, guidance_scale: 10, num_frames: 180 (if not set by duration)
+
+      log.info(
+        "FalProvider: Submitting image-to-video request to framepack queue...",
+        { input }
+      );
+      const { request_id } = await fal.queue.submit("fal-ai/framepack", {
+        input: input,
+      });
+
+      log.info(
+        `FalProvider: Framepack request submitted with ID: ${request_id}. Polling for completion...`
+      );
+
+      let result: any;
+      const POLLING_INTERVAL_MS = 5000; // 5 seconds
+      const MAX_POLLING_ATTEMPTS = 120; // 10 minutes timeout
+      let attempts = 0;
+
+      while (attempts < MAX_POLLING_ATTEMPTS) {
+        attempts++;
+        const statusResponse: any = await fal.queue.status("fal-ai/framepack", {
+          requestId: request_id,
+          logs: true,
+        });
+
+        log.debug(
+          `FalProvider (framepack): Poll attempt ${attempts}, Status: ${statusResponse.status}`,
+          { logs: statusResponse.logs }
+        );
+
+        if (statusResponse.status === "COMPLETED") {
+          log.info(
+            `FalProvider (framepack): Request ${request_id} completed. Fetching result...`
+          );
+          result = (await fal.queue.result("fal-ai/framepack", {
+            requestId: request_id,
+          })) as any;
+          break;
+        } else if (
+          statusResponse.status === "IN_PROGRESS" ||
+          statusResponse.status === "IN_QUEUE"
+        ) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, POLLING_INTERVAL_MS)
+          );
+        } else if (
+          statusResponse.status === "FAILED" ||
+          statusResponse.status === "CANCELLED" ||
+          statusResponse.status === "ERROR"
+        ) {
+          log.error(
+            `FalProvider (framepack): Video generation failed or was cancelled for request ${request_id}. Status: ${statusResponse.status}`,
+            { statusResponse }
+          );
+          throw new Error(
+            `FalProvider (framepack): Video generation failed with status ${
+              statusResponse.status
+            }. Error: ${statusResponse.error || "Unknown error"}`
+          );
+        } else {
+          log.error(
+            `FalProvider (framepack): Unknown status for request ${request_id}: ${statusResponse.status}`,
+            { statusResponse }
+          );
+          throw new Error(
+            `FalProvider (framepack): Unknown status ${statusResponse.status} for video generation.`
+          );
+        }
+      }
+
+      if (!result) {
+        log.error(
+          `FalProvider (framepack): Video generation timed out after ${
+            (attempts * POLLING_INTERVAL_MS) / 1000
+          } seconds for request ${request_id}.`
+        );
+        throw new Error("FalProvider (framepack): Video generation timed out.");
+      }
+
+      log.info("FalProvider (framepack): Video result fetched.", { result });
+
+      // Framepack output schema: { video: { url: "...", ... }, seed: ... }
+      if (result && result.video && result.video.url) {
+        const videoItem = result.video;
+        const output: ProviderVideoOutput = {
+          id: request_id,
+          videoUrl: videoItem.url,
+          mimeType: videoItem.content_type || "video/mp4", // Default to video/mp4
+          prompt: args.prompt,
+          // seed: result.seed // if seed is available and needed
+        };
+        return [output]; // framepack seems to generate one video
+      } else {
+        log.warn(
+          "FalProvider (framepack): Unexpected result structure from Fal queue",
+          { result }
+        );
+        throw new Error(
+          "FalProvider (framepack): Could not parse video output from Fal queue. Expected video URL."
+        );
+      }
+    } catch (error) {
+      log.error(
+        "FalProvider (framepack): Error generating video from image",
+        error
+      );
+      throw error instanceof Error ? error : new Error(String(error));
+    }
   }
 
   async generateImage(args: {
