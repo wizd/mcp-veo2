@@ -102,62 +102,71 @@ export function createServer(): McpServer {
 
   // Register the text-to-video generation tool
   server.tool(
-    'generateVideoFromText',
-    'Generate a video from a text prompt',
+    "generateVideoFromText",
+    "Generate a video from a text prompt. English prompts are recommended as the underlying service provider does not support Chinese.",
     {
       prompt: z.string().min(1).max(1000),
-      aspectRatio: z.enum(['16:9', '9:16']).default('16:9'),
-      personGeneration: z.enum(['dont_allow', 'allow_adult']).default('dont_allow'),
+      aspectRatio: z.enum(["16:9", "9:16"]).default("16:9"),
+      personGeneration: z
+        .enum(["dont_allow", "allow_adult"])
+        .default("dont_allow"),
       numberOfVideos: z.union([z.literal(1), z.literal(2)]).default(1),
       durationSeconds: z.number().min(5).max(8).default(5),
       enhancePrompt: z.union([z.boolean(), z.string()]).default(false),
-      negativePrompt: z.string().default(''),
+      negativePrompt: z.string().default(""),
       includeFullData: z.union([z.boolean(), z.string()]).default(false),
       autoDownload: z.union([z.boolean(), z.string()]).default(true),
     },
     generateVideoFromText
   );
-  
+
   // Register the image-to-video generation tool
   server.tool(
-    'generateVideoFromImage',
-    'Generate a video from an image',
+    "generateVideoFromImage",
+    "Generate a video from an image. English prompts are recommended as the underlying service provider does not support Chinese.",
     {
-      prompt: z.string().min(1).max(1000).optional().default('Generate a video from this image'),
+      prompt: z
+        .string()
+        .min(1)
+        .max(1000)
+        .optional()
+        .default("Generate a video from this image"),
       image: z.union([
         // ImageContent object
         z.object({
-          type: z.literal('image'),
+          type: z.literal("image"),
           mimeType: z.string(),
-          data: z.string().min(1) // base64 encoded image data
+          data: z.string().min(1), // base64 encoded image data
         }),
         // URL string
         z.string().url(),
         // File path string
-        z.string().min(1)
+        z.string().min(1),
       ]),
-      aspectRatio: z.enum(['16:9', '9:16']).default('16:9'),
-      personGeneration: z.enum(['dont_allow', 'allow_adult']).default('dont_allow'),
+      aspectRatio: z.enum(["16:9", "9:16"]).default("16:9"),
+      personGeneration: z
+        .enum(["dont_allow", "allow_adult"])
+        .default("dont_allow"),
       numberOfVideos: z.union([z.literal(1), z.literal(2)]).default(1),
       durationSeconds: z.number().min(5).max(8).default(5),
       enhancePrompt: z.union([z.boolean(), z.string()]).default(false),
-      negativePrompt: z.string().default(''),
+      negativePrompt: z.string().default(""),
       includeFullData: z.union([z.boolean(), z.string()]).default(false),
       autoDownload: z.union([z.boolean(), z.string()]).default(true),
     },
     generateVideoFromImage
   );
-  
+
   // Schema for image generation configuration
   const ImageGenerationConfigSchema = z.object({
     numberOfImages: z.number().min(1).max(4).default(1),
     // Add other Imagen parameters as needed
   });
-  
+
   // Register the image generation tool
   server.tool(
-    'generateImage',
-    'Generate an image from a text prompt using Google Imagen',
+    "generateImage",
+    "Generate an image from a text prompt using Google Imagen. English prompts are recommended as the underlying service provider does not support Chinese.",
     {
       prompt: z.string().min(1).max(1000),
       numberOfImages: z.number().min(1).max(4).default(1),
@@ -165,23 +174,25 @@ export function createServer(): McpServer {
     },
     generateImage
   );
-  
+
   // Register the image-to-video generation with generated image tool
   server.tool(
-    'generateVideoFromGeneratedImage',
-    'Generate a video from a generated image (one-step process)',
+    "generateVideoFromGeneratedImage",
+    "Generate a video from a generated image (one-step process). English prompts are recommended as the underlying service provider does not support Chinese.",
     {
       prompt: z.string().min(1).max(1000),
       videoPrompt: z.string().min(1).max(1000).optional(),
       // Image generation parameters
       numberOfImages: z.number().min(1).max(4).default(1),
       // Video generation parameters
-      aspectRatio: z.enum(['16:9', '9:16']).default('16:9'),
-      personGeneration: z.enum(['dont_allow', 'allow_adult']).default('dont_allow'),
+      aspectRatio: z.enum(["16:9", "9:16"]).default("16:9"),
+      personGeneration: z
+        .enum(["dont_allow", "allow_adult"])
+        .default("dont_allow"),
       numberOfVideos: z.union([z.literal(1), z.literal(2)]).default(1),
       durationSeconds: z.number().min(5).max(8).default(5),
       enhancePrompt: z.union([z.boolean(), z.string()]).default(false),
-      negativePrompt: z.string().default(''),
+      negativePrompt: z.string().default(""),
       includeFullData: z.union([z.boolean(), z.string()]).default(false),
       autoDownload: z.union([z.boolean(), z.string()]).default(true),
     },
