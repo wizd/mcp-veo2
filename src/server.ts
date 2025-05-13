@@ -103,7 +103,7 @@ export function createServer(): McpServer {
   // Register the text-to-video generation tool
   server.tool(
     "generateVideoFromText",
-    "Generate a video from a text prompt. English prompts are recommended as the underlying service provider does not support Chinese.",
+    "通过文本提示生成一个视频。建议使用英文提示，因为底层服务提供商不支持中文。注意：每次调用仅生成一个视频。",
     {
       prompt: z.string().min(1).max(1000),
       aspectRatio: z.enum(["16:9", "9:16"]).default("16:9"),
@@ -123,7 +123,7 @@ export function createServer(): McpServer {
   // Register the image-to-video generation tool
   server.tool(
     "generateVideoFromImage",
-    "Generate a video from an image. English prompts are recommended as the underlying service provider does not support Chinese.",
+    "通过图片生成一个视频。建议使用英文提示，因为底层服务提供商不支持中文。注意：每次调用仅生成一个视频。",
     {
       prompt: z
         .string()
@@ -166,7 +166,7 @@ export function createServer(): McpServer {
   // Register the image generation tool
   server.tool(
     "generateImage",
-    "Generate an image from a text prompt using Google Imagen. English prompts are recommended as the underlying service provider does not support Chinese.",
+    "使用 Google Imagen 通过文本提示生成一个图片。建议使用英文提示，因为底层服务提供商不支持中文。注意：每次调用仅生成一个图片。",
     {
       prompt: z.string().min(1).max(1000),
       numberOfImages: z.number().min(1).max(4).default(1),
@@ -178,7 +178,7 @@ export function createServer(): McpServer {
   // Register the image-to-video generation with generated image tool
   server.tool(
     "generateVideoFromGeneratedImage",
-    "Generate a video from a generated image (one-step process). English prompts are recommended as the underlying service provider does not support Chinese.",
+    "通过已生成的图片一步生成一个视频。建议使用英文提示，因为底层服务提供商不支持中文。注意：每次调用仅生成一个视频。",
     {
       prompt: z.string().min(1).max(1000),
       videoPrompt: z.string().min(1).max(1000).optional(),
