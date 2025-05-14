@@ -6,7 +6,7 @@ import path from 'path';
 import appConfig from '../config.js';
 
 // Define the storage directory for generated images
-const IMAGE_STORAGE_DIR = path.join(appConfig.STORAGE_DIR, 'images');
+const IMAGE_STORAGE_DIR = appConfig.STORAGE_DIR; // Use configured storage directory root
 
 /**
  * Resource template for accessing generated images

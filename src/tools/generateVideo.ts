@@ -20,16 +20,7 @@ import {
 
 // Removed: const ai = new GoogleGenAI({ apiKey: appConfig.GOOGLE_API_KEY });
 
-const IMAGE_STORAGE_DIR = path.join(appConfig.STORAGE_DIR, 'images');
-
-(async () => {
-  try {
-    await fs.mkdir(IMAGE_STORAGE_DIR, { recursive: true });
-  } catch (error) {
-    log.fatal("Failed to create image storage directory:", error);
-    process.exit(1);
-  }
-})();
+const IMAGE_STORAGE_DIR = appConfig.STORAGE_DIR; // Use configured storage directory root
 
 async function saveGeneratedImage(
   imageBytes: string,
@@ -69,37 +60,42 @@ async function saveGeneratedImage(
   }
 }
 
-const AspectRatioSchema = z.enum(['16:9', '9:16']);
-const PersonGenerationSchema = z.enum(['dont_allow', 'allow_adult']);
+const AspectRatioSchema = z.enum(["16:9", "9:16"]);
+const PersonGenerationSchema = z.enum(["dont_allow", "allow_adult"]);
 
 // Provider selection (can be made more dynamic, e.g., via config or args)
-const defaultVideoProviderName = 'fal'; // Fal is the new default for video
-const defaultImageProviderName = 'getimg'; // getimg is the new default for images
+const defaultVideoProviderName = "fal"; // Fal is the new default for video
+const defaultImageProviderName = "getimg"; // getimg is the new default for images
 
 function getVideoProvider(providerName?: string): MediaGenerationProvider {
   const name = providerName || defaultVideoProviderName;
-  if (name === 'fal') return falProvider;
-  if (name === 'veo') return veoProvider;
+  if (name === "fal") return falProvider;
+  if (name === "veo") return veoProvider;
   // Potentially add other video providers here
-  log.warn(`Unknown or unsupported video provider specified: ${name}. Falling back to default: ${defaultVideoProviderName}`);
-  if (defaultVideoProviderName === 'fal') return falProvider;
-  if (defaultVideoProviderName === 'veo') return veoProvider; // Should match the actual default
-  throw new Error(`Default video provider ${defaultVideoProviderName} not configured correctly.`);
+  log.warn(
+    `Unknown or unsupported video provider specified: ${name}. Falling back to default: ${defaultVideoProviderName}`
+  );
+  if (defaultVideoProviderName === "fal") return falProvider;
+  if (defaultVideoProviderName === "veo") return veoProvider; // Should match the actual default
+  throw new Error(
+    `Default video provider ${defaultVideoProviderName} not configured correctly.`
+  );
 }
 
 function getImageProvider(providerName?: string): MediaGenerationProvider {
   const name = providerName || defaultImageProviderName;
-  if (name === 'google') return googleProvider;
+  if (name === "google") return googleProvider;
   if (name === "getimg") return getimgProvider;
   // Potentially add other image providers here
   log.warn(
     `Unknown or unsupported image provider specified: ${name}. Falling back to default: ${defaultImageProviderName}`
   );
   if (defaultImageProviderName === "getimg") return getimgProvider;
-  if (defaultImageProviderName === 'google') return googleProvider;
-  throw new Error(`Default image provider ${defaultImageProviderName} not configured correctly.`);
+  if (defaultImageProviderName === "google") return googleProvider;
+  throw new Error(
+    `Default image provider ${defaultImageProviderName} not configured correctly.`
+  );
 }
-
 
 export async function generateVideoFromText(args: {
   prompt: string;
@@ -575,24 +571,15 @@ export async function generateVideoFromGeneratedImage(args: {
 // listGeneratedVideos might need adjustment if Fal or other providers offer listing capabilities
 // or if we want to list videos based on locally stored metadata (if any for non-Veo videos).
 
-async function getImageMetadata(id: string): Promise<any> {
-  try {
-    const metadataPath = path.resolve(IMAGE_STORAGE_DIR, `${id}.json`);
-    const metadataJson = await fs.readFile(metadataPath, "utf-8");
-    return JSON.parse(metadataJson);
-  } catch (error) {
-    log.error(`Error getting metadata for image ${id}:`, error);
-    throw new Error(`Image metadata not found: ${id}`);
-  }
-}
-
 export async function getImage(args: {
   id: string;
   includeFullData?: boolean | string;
 }): Promise<CallToolResult> {
   try {
     log.info(`Getting image with ID: ${args.id}`);
-    const metadata = await getImageMetadata(args.id);
+    const metadataPath = path.resolve(IMAGE_STORAGE_DIR, `${args.id}.json`);
+    const metadataJson = await fs.readFile(metadataPath, "utf-8");
+    const metadata = JSON.parse(metadataJson);
 
     const includeFullData =
       typeof args.includeFullData === "string"
@@ -602,16 +589,16 @@ export async function getImage(args: {
 
     const responseContent: Array<TextContent | ImageContent> = [];
     if (includeFullData && metadata.filepath) {
-      try {
-        const imageData = await fs.readFile(metadata.filepath);
-        responseContent.push({
-          type: "image",
-          mimeType: metadata.mimeType || "image/png",
-          data: imageData.toString("base64"),
-        });
-      } catch (error) {
-        log.error(`Error reading image file ${metadata.filepath}:`, error);
-      }
+      // try {
+      //   const imageData = await fs.readFile(metadata.filepath);
+      //   responseContent.push({
+      //     type: "image",
+      //     mimeType: metadata.mimeType || "image/png",
+      //     data: imageData.toString("base64"),
+      //   });
+      // } catch (error) {
+      //   log.error(`Error reading image file ${metadata.filepath}:`, error);
+      // }
     }
 
     responseContent.push({

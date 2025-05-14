@@ -6,8 +6,78 @@ import {
 } from "./types.js";
 import { log } from "../utils/logger.js";
 import { v4 as uuidv4 } from "uuid";
+import fs from "fs/promises";
+import path from "path";
+import appConfig from "../config.js";
+// import fetch from "node-fetch"; // Using global fetch if available
 
 class FalProvider implements MediaGenerationProvider {
+  private async saveVideoArtifact(
+    videoUrl: string,
+    prompt: string | undefined,
+    originalMimeType: string | undefined
+  ): Promise<{
+    id: string;
+    filepath: string;
+    mimeType: string;
+    size: number;
+    videoUrl: string;
+    createdAt: string;
+  }> {
+    const id = uuidv4();
+    const createdAt = new Date().toISOString();
+    let extension = ".mp4"; // Default extension
+    const determinedMimeType = originalMimeType || "video/mp4";
+
+    if (determinedMimeType === "video/webm") {
+      extension = ".webm";
+    } else if (determinedMimeType === "video/quicktime") {
+      extension = ".mov";
+    }
+    // Add other mimeType to extension mappings if needed
+
+    const filepath = path.resolve(appConfig.STORAGE_DIR, `${id}${extension}`);
+
+    log.info(`FalProvider: Downloading video from ${videoUrl} to ${filepath}`);
+    const response = await fetch(videoUrl);
+    if (!response.ok) {
+      throw new Error(
+        `FalProvider: Failed to download video from ${videoUrl}. Status: ${response.status} ${response.statusText}`
+      );
+    }
+    // Use .arrayBuffer() and convert to Buffer for global fetch
+    const arrayBuffer = await response.arrayBuffer();
+    const videoBuffer = Buffer.from(arrayBuffer);
+    await fs.writeFile(filepath, videoBuffer);
+    const size = videoBuffer.length;
+    log.info(
+      `FalProvider: Video saved successfully to ${filepath}, size: ${size} bytes`
+    );
+
+    const metadata = {
+      id,
+      createdAt,
+      prompt,
+      mimeType: determinedMimeType,
+      size,
+      filepath,
+      videoUrl, // Original Fal URL
+      provider: "fal",
+    };
+    const metadataPath = path.resolve(appConfig.STORAGE_DIR, `${id}.json`);
+    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+    log.info(`FalProvider: Metadata saved to ${metadataPath}`);
+
+    return {
+      id,
+      filepath,
+      mimeType: determinedMimeType,
+      size,
+      videoUrl,
+      createdAt,
+    };
+  }
+
   async generateVideoFromText(args: {
     prompt: string;
     aspectRatio?: "16:9" | "9:16";
@@ -157,15 +227,22 @@ class FalProvider implements MediaGenerationProvider {
 
       for (const videoItem of parsedVideos) {
         if (videoItem.url) {
+          // Download and save the video
+          const savedArtifact = await this.saveVideoArtifact(
+            videoItem.url,
+            args.prompt,
+            videoItem.content_type
+          );
+
           videoOutputs.push({
-            id: request_id, // Use request_id as the unique ID for the video
-            videoUrl: videoItem.url,
-            // Use provided content_type, fallback to video/mp4. Fal example showed image/png for a video.
-            mimeType: videoItem.content_type || "video/mp4",
+            id: savedArtifact.id,
+            filepath: savedArtifact.filepath,
+            videoUrl: savedArtifact.videoUrl, // This is the original fal URL
+            mimeType: savedArtifact.mimeType,
             prompt: args.prompt,
-            // file_name: videoItem.file_name, // Can be added if needed
-            // file_size: videoItem.file_size, // Can be added if needed
-            // seed: result.seed // if seed is part of the top-level result object
+            // file_name: videoItem.file_name, // Can be stored in metadata if needed
+            // file_size: savedArtifact.size, // size is now from the downloaded file
+            // seed: result.seed // if seed is part of the top-level result object, store in metadata
           });
         }
       }
@@ -348,12 +425,21 @@ class FalProvider implements MediaGenerationProvider {
       // Framepack output schema: { video: { url: "...", ... }, seed: ... }
       if (result && result.video && result.video.url) {
         const videoItem = result.video;
+
+        // Download and save the video
+        const savedArtifact = await this.saveVideoArtifact(
+          videoItem.url,
+          args.prompt,
+          videoItem.content_type
+        );
+
         const output: ProviderVideoOutput = {
-          id: request_id,
-          videoUrl: videoItem.url,
-          mimeType: videoItem.content_type || "video/mp4", // Default to video/mp4
+          id: savedArtifact.id,
+          filepath: savedArtifact.filepath,
+          videoUrl: savedArtifact.videoUrl, // Original Fal URL
+          mimeType: savedArtifact.mimeType,
           prompt: args.prompt,
-          // seed: result.seed // if seed is available and needed
+          // seed: result.seed // if seed is available and needed, store in metadata
         };
         return [output]; // framepack seems to generate one video
       } else {

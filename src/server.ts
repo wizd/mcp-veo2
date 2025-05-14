@@ -208,11 +208,11 @@ export function createServer(): McpServer {
   
   // Register the get image tool
   server.tool(
-    'getImage',
-    'Get a specific image by ID',
+    "getImage",
+    "Get a specific image by ID",
     {
       id: z.string().min(1),
-      includeFullData: z.union([z.boolean(), z.string()]).default(true),
+      includeFullData: z.union([z.boolean(), z.string()]).default(false),
     },
     getImage
   );
